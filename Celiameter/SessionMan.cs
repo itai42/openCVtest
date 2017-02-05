@@ -9,26 +9,45 @@ using System.Text;
 using System.Xml;
 using System.Xml.Schema;
 using System.Xml.Serialization;
+using System.Runtime.Serialization;
 using System.Windows.Forms;
 using Emgu.CV.Structure;
 
 namespace Celiameter
 {
-  [Serializable]
-  public class RoiItem : IXmlSerializable
+  [XmlRoot("ROI")]
+  public class RoiItem
   {
+    [XmlElement("BoundingRect")]
     public Rectangle _boundingRect = new Rectangle();
+
+    [XmlElement("TopLeft")]
     public Point TL = new Point();
+
+    [XmlElement("TopRight")]
     public Point TR = new Point();
+
+    [XmlElement("BottomLeft")]
     public Point BL = new Point();
+
+    [XmlElement("BottomRight")]
     public Point BR = new Point();
+
+    [XmlElement("RectSize")]
     public SizeF _rectSz = new SizeF();
+
+    [XmlElement("RectCenter")]
     public PointF _rectCenter = new PointF();
+
+    [XmlElement("RectAngle")]
     public double _rectAngle = 0.0;
 
+    [XmlIgnore]
     public Mat _mat = null;
+    [XmlIgnore]
     Point[] _points = new Point[4];
 
+    [XmlIgnore]
     public Point[] Points
     {
       get
@@ -64,30 +83,86 @@ namespace Celiameter
       }
       return ret;
     }
-
-    XmlSchema IXmlSerializable.GetSchema()
-    {
-      return null;
-    }
-
-    void IXmlSerializable.ReadXml(XmlReader reader)
-    {
-    }
-
-    void IXmlSerializable.WriteXml(XmlWriter writer)
-    {
-    }
   }
+
+
+  [XmlRoot("SessionFrameHolder")]
   public class SessionFrame
   {
+    [XmlAttribute("ImageFile")]
     public String _imageFilePath = String.Empty;
+
+    [XmlAttribute("IterationAdded")]
     public int _iterationAdded = 0;
+
+    [XmlAttribute("IterationMoved")]
     public int _iterationMoved = 0;
+
+    [XmlAttribute("IterationRemoved")]
     public int _iterationRemoved = 0;
+
+    [XmlIgnore]
     public bool _found = false;
+    [XmlIgnore]
     public SortedList<String, RoiItem> _roiItems = new SortedList<string, RoiItem>();
 
+    public class RoiSerializerItem
+    {
+      [XmlAttribute("Name")]
+      public string _key = "";
+
+      [XmlElement("Rectangle")]
+      public RoiItem _val = new RoiItem();
+
+      public RoiSerializerItem()
+      {
+
+      }
+      public RoiSerializerItem(string key, RoiItem val)
+      {
+        _key = key;
+        _val = val;
+      }
+    }
+
+    [XmlIgnore]
+    List<RoiSerializerItem> _roisForSerialization = null;
+
+    [XmlArray("ROIs")]
+    public List<RoiSerializerItem> ROIsForSerialization
+    {
+      get
+      {
+        if (_roisForSerialization == null)
+        {
+          _roisForSerialization = _roiItems.Select(v => new RoiSerializerItem(v.Key, v.Value)).ToList();
+        }
+        return _roisForSerialization;
+      }
+      set
+      {
+        _roiItems = new SortedList<String, RoiItem>(value.ToDictionary(v => v._key, v => v._val));
+      }
+    }
+
+    //[XmlArray("ROIsD")]
+    //[XmlArrayItem("PairD")]
+//     [XmlIgnore]
+//     public Dictionary<String, RoiItem> ROIsD
+//     {
+//       get
+//       {
+//         return _roiItems.ToDictionary(v => v.Key, v => v.Value);
+//       }
+//       set
+//       {
+//         _roiItems = new SortedList<String, RoiItem>(value);
+//       }
+//     }
+
+    [XmlIgnore]
     public bool _imgLoaded = false;
+    [XmlIgnore]
     public Mat _matOrig = new Mat();
     public SessionFrame()
     {
@@ -142,68 +217,135 @@ namespace Celiameter
       CvInvoke.Resize(loadImage(), retmat, imageSize);
       return retmat;
     }
+
+    internal SessionFrame GetSerializationFrame()
+    {
+      ROIsForSerialization = _roisForSerialization;
+      _roisForSerialization = null;
+      return this;
+    }
   }
+
+  [XmlRoot("SessionFrameHolder")]
   public class SessionFrameTag
   {
+    [XmlElement("Frame")]
     public SessionFrame _frame = null;
+    [XmlAttribute("name")]
     public String _key = "";
     public SessionFrameTag() { }
-    public SessionFrameTag(string key, ref SessionFrame frame)
+    public SessionFrameTag(string key, SessionFrame frame)
     {
       _frame = frame;
       _key = key;
     }
     public static int indexInList(ref List<SessionFrameTag> list, String key)
     {
-      var items = list.Where(v => v._key == key).Select((v, n) => n).ToList();
+      var items = list.Select((v, n) => new { Value = v, Index = n }).Where(v => v.Value._key == key).ToList();
       if (items.Count == 1)
-        return items.First();
+        return items.First().Index;
       if (items.Count == 0)
         return -1;
       if (items.Count > 1)
+      {
+        list.RemoveAll(v => v._key == key);
         return -2;
+      }
       //if (items.Count < 0)
       return items.Count; //shutup warning
     }
     public static SessionFrameTag itemInList(ref List<SessionFrameTag> list, String key)
     {
-      var items = list.Where(v => v._key == key).Select((v, n) => v).ToList();
+      var items = list.Where(v => v._key == key).ToList();
       if (items.Count == 1)
         return items.First();
       return null;
     }
 
-    internal static void setTagListItem(ref List<SessionFrameTag> frames, String key, ref SessionFrame frame)
+    internal static void setTagListItem(ref List<SessionFrameTag> frames, String key, ref SessionFrame frame, out bool existed)
     {
       int idx = SessionFrameTag.indexInList(ref frames, key);
-      if (idx == -1)
+      if (idx < 0)
       {
-        frames.Add(new SessionFrameTag(key, ref frame));
+        frames.Add(new SessionFrameTag(key, frame));
+        existed = false;
       }
-      else if (idx >= 0)
+      else //if (idx >= 0)
       {
         frames[idx]._frame = frame;
+        existed = true;
       }
     }
+
   }
+
+  [XmlRoot("Session")]
   public class SessionMan
   {
-    public bool _modified;
-    public String _sessionFileName;
-    public String _path;
-    internal string _ext;
-    internal int _iteration;
-    internal List<SessionFrameTag> _sessionFrames = new List<SessionFrameTag>();
+    [XmlIgnore]
+    public bool _loaded = false;
+
+    [XmlIgnore]
+    private bool _modified = false;
+
+    [XmlElement("SessionFilename")]
+    public String _sessionFileName ="";
+
+    [XmlElement("SessionPath")]
+    public String _path = "";
+
+    [XmlAttribute("Ext")]
+    public string _ext = ".tif";
+
+    [XmlAttribute("Iteration")]
+    public int _iteration = 0;
+
+    [XmlAttribute("Version")]
+    public string _version = SessionFileHeaderVersion;
+
+    [XmlIgnore]
+    public List<SessionFrameTag> _sessionFrames = new List<SessionFrameTag>();
+
+    [XmlIgnore]
+    List<SessionFrame> _sessionFramesForSerialization = null;
+
+    [XmlArray("SessionFrames")]
+    public List<SessionFrame> SessionFramesForSerialization
+    {
+      get
+      {
+        if (_sessionFramesForSerialization == null)
+        {
+          _sessionFramesForSerialization = _sessionFrames.Select(v => v._frame).ToList();
+        }
+        return _sessionFramesForSerialization;
+      }
+      set
+      {
+        var frameTags = value.Select(v => new SessionFrameTag(Path.GetFileName(v._imageFilePath), v.GetSerializationFrame())).ToList();
+        _sessionFrames = frameTags;
+        _sessionFramesForSerialization = null;
+      }
+    }
+
+    [XmlIgnore]
     internal List< SessionFrameTag> _activeFrames = new List<SessionFrameTag>();
-    internal static string SessionFileExt = "cels";
+
+    internal static string SessionFileExt = ".cels";
     internal static string SessionFileHeaderName = "celiameter";
     internal static string SessionFileHeaderVersion = "1.0";
 
+    [XmlIgnore]
     public ImageListStreamer imageListStreamer { get; internal set; }
+    [XmlIgnore]
+    public bool Modified
+    {
+      get { return (_loaded & _modified); }
+      internal set { _modified = (_loaded & value); }
+    }
 
     public SessionMan()
     {
-      _modified = false;
       _iteration = 0;
     }
 
@@ -215,55 +357,83 @@ namespace Celiameter
       return true;
     }
 
-    static internal bool createNewSession(out SessionMan newSession, String sessionFilePath, String sessionPath, String imageFileExt)
+    static internal bool createNewSession(out SessionMan newSession, String sessionFilePath, String imageFileExt)
     {
+      String sessionPath = Path.GetDirectoryName(sessionFilePath);
       newSession = new SessionMan();
       newSession._iteration = 0;
       newSession._modified = false;
       newSession._ext = imageFileExt;
       newSession._path = sessionPath;
       newSession._sessionFileName = sessionFilePath;
-      XmlDocument xdoc = new XmlDocument();
-      XmlElement celmElement = xdoc.CreateElement("type");
-      celmElement.SetAttribute("name", SessionMan.SessionFileHeaderName);
-      celmElement.SetAttribute("version", SessionMan.SessionFileHeaderVersion);
-      celmElement.SetAttribute("iteration", newSession._iteration.ToString());
-      XmlElement sourcefileElement = xdoc.CreateElement("sourceFile");
-      sourcefileElement.SetAttribute("path", newSession._path);
-      sourcefileElement.SetAttribute("ext", newSession._ext);
-      XmlTextWriter writer = new XmlTextWriter(newSession._sessionFileName, Encoding.UTF8);
-      writer.Formatting = Formatting.Indented;
-      xdoc.AppendChild(xdoc.CreateElement(SessionMan.SessionFileHeaderName));
-      xdoc.DocumentElement.AppendChild(celmElement);
-      xdoc.DocumentElement.AppendChild(sourcefileElement);
-      writer.WriteStartDocument();
-      xdoc.WriteContentTo(writer);
-      writer.WriteEndDocument();
-      writer.Close();
-      return newSession.loadSession(newSession._sessionFileName);
-    }
-    internal bool loadSession(string sessionFileName)
-    {
-      if (!File.Exists(sessionFileName))
+      if (!newSession.saveSession(sessionFilePath, true))
       {
         return false;
       }
+      newSession = SessionMan.loadSession(sessionFilePath);
+      return (newSession != null);
+    }
+    static public SessionMan loadSession(string sessionFileName)
+    {
+      if (!File.Exists(sessionFileName))
+      {
+        return null;
+      }
+      SessionMan session = null;
+      XmlTextReader reader = new XmlTextReader(sessionFileName);
+      try
+      {
+
+        var ser = new XmlSerializer(typeof(SessionMan));
+        object loadedSessionObj = ser.Deserialize(reader);
+        if (loadedSessionObj == null)
+        {
+          return null;
+        }
+        session = (SessionMan)loadedSessionObj;
+        session.prepAfterLoad(sessionFileName);
+
+      }
+      catch (Exception ex)
+      {
+        string msg = ex.Message;
+        MessageBox.Show(msg);
+        return null;
+      }
+      finally
+      {
+        reader.Close();
+      }
+      return session;
+    }
+
+    private void prepAfterLoad(string sessionFileName)
+    {
+      SessionFramesForSerialization = _sessionFramesForSerialization;
+      _sessionFramesForSerialization = null;
+      _path = Path.GetDirectoryName(sessionFileName);
+      _sessionFileName = sessionFileName;
       _activeFrames.Clear();
       foreach (var frm in _sessionFrames)
       {
         frm._frame._found = false;
       }
-      var files = Directory.GetFiles(_path, "*" + _ext).OrderBy(f => f);  
+      bool existed;
+      var files = Directory.GetFiles(_path, "*" + _ext).OrderBy(f => f);
       foreach (var filePath in files)
       {
         String fileName = Path.GetFileName(filePath);
         var frame = initFrame(fileName, filePath);
         if (frame != null)
         {
-          SessionFrameTag.setTagListItem(ref _sessionFrames, fileName, ref frame);
+          SessionFrameTag.setTagListItem(ref _sessionFrames, fileName, ref frame, out existed);
+          if (!existed)
+          {
+            Modified = true;
+          }
           if (frame._found)
           {
-            SessionFrameTag.setTagListItem(ref _activeFrames, fileName, ref frame);
+            SessionFrameTag.setTagListItem(ref _activeFrames, fileName, ref frame, out existed);
           }
         }
       }
@@ -273,15 +443,56 @@ namespace Celiameter
         f._frame._iterationRemoved = _iteration;
       }
       _modified = false;
-      return true;
+      _loaded = true;
     }
-    internal bool saveSession(string fileName, bool force)
+
+    internal bool saveSession(string fileName, bool force = false)
     {
       if (!_modified && !force)
       {
         return true;
       }
       // Directory.GetFiles(_path, "*." + _ext).First();
+
+      //Prep for save
+      if (!prepForSave(fileName))
+      {
+        return false;
+      }
+
+      //Save
+      bool ret = true;
+      XmlTextWriter writer = new XmlTextWriter(_sessionFileName, Encoding.UTF8);
+      try
+      {
+
+        var ser = new XmlSerializer(typeof(SessionMan));
+        writer.Indentation = 2;
+        writer.IndentChar = ' ';
+        writer.Formatting = Formatting.Indented;
+        writer.WriteStartDocument();
+        ser.Serialize(writer, this);
+        writer.WriteEndDocument();
+        //Set state after save
+        _modified = false;
+      }
+      catch (Exception ex)
+      {
+        string msg = ex.Message;
+        MessageBox.Show(msg);
+        ret = false;
+      }
+      finally
+      {
+        writer.Close();
+      }
+      return ret;
+    }
+
+    private bool prepForSave(string fileName)
+    {
+      _path = Path.GetDirectoryName(fileName);
+      _sessionFramesForSerialization = null;
       return true;
     }
 
@@ -303,7 +514,8 @@ namespace Celiameter
         frame._found = true;
         frame._imageFilePath = imageFile;
         frame._iterationAdded = _iteration;
-        SessionFrameTag.setTagListItem(ref _sessionFrames, name, ref frame);
+        bool existed;
+        SessionFrameTag.setTagListItem(ref _sessionFrames, name, ref frame, out existed);
       }
       return frame;
     }

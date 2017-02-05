@@ -48,6 +48,7 @@
       this.pbcLabel = new System.Windows.Forms.ToolStripLabel();
       this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
       this.tbCurImage = new System.Windows.Forms.ToolStripTextBox();
+      this.btnCacheAllFrames = new System.Windows.Forms.ToolStripButton();
       this.pbOutView = new Emgu.CV.UI.ImageBox();
       this.splitContorl = new System.Windows.Forms.SplitContainer();
       this.label1 = new System.Windows.Forms.Label();
@@ -66,12 +67,12 @@
       this.openToolStripButton = new System.Windows.Forms.ToolStripButton();
       this.newToolStripButton = new System.Windows.Forms.ToolStripButton();
       this.toolStrip1 = new System.Windows.Forms.ToolStrip();
+      this.cbSeperator = new System.Windows.Forms.ToolStripSeparator();
       this.toolStripProgressBar1 = new System.Windows.Forms.ToolStripProgressBar();
       this.toolStripStatusLabel3 = new System.Windows.Forms.ToolStripStatusLabel();
       this.toolStripStatusLabel2 = new System.Windows.Forms.ToolStripStatusLabel();
       this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
       this.statusStrip1 = new System.Windows.Forms.StatusStrip();
-      this.btnCacheAllFrames = new System.Windows.Forms.ToolStripButton();
       this.statusStrip2.SuspendLayout();
       this.toolStrip2.SuspendLayout();
       ((System.ComponentModel.ISupportInitialize)(this.splitRight)).BeginInit();
@@ -112,7 +113,7 @@
       this.lvThumbs.Name = "lvThumbs";
       this.lvThumbs.OwnerDraw = true;
       this.lvThumbs.ShowGroups = false;
-      this.lvThumbs.Size = new System.Drawing.Size(1247, 281);
+      this.lvThumbs.Size = new System.Drawing.Size(1247, 282);
       this.lvThumbs.TabIndex = 0;
       this.lvThumbs.UseCompatibleStateImageBehavior = false;
       this.lvThumbs.DrawItem += new System.Windows.Forms.DrawListViewItemEventHandler(this.lvThumbs_DrawItem);
@@ -131,7 +132,7 @@
       this.statusStrip2.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.txtPointerCoords,
             this.txtDebugMsg});
-      this.statusStrip2.Location = new System.Drawing.Point(0, 607);
+      this.statusStrip2.Location = new System.Drawing.Point(0, 606);
       this.statusStrip2.Name = "statusStrip2";
       this.statusStrip2.Size = new System.Drawing.Size(1247, 46);
       this.statusStrip2.TabIndex = 1;
@@ -196,7 +197,7 @@
       this.splitRight.Panel2.Controls.Add(this.thumbToolStrip);
       this.splitRight.Panel2.Controls.Add(this.lvThumbs);
       this.splitRight.Size = new System.Drawing.Size(1247, 938);
-      this.splitRight.SplitterDistance = 653;
+      this.splitRight.SplitterDistance = 652;
       this.splitRight.TabIndex = 1;
       // 
       // pbMain
@@ -205,7 +206,7 @@
       this.pbMain.Dock = System.Windows.Forms.DockStyle.Fill;
       this.pbMain.Location = new System.Drawing.Point(0, 0);
       this.pbMain.Name = "pbMain";
-      this.pbMain.Size = new System.Drawing.Size(1247, 607);
+      this.pbMain.Size = new System.Drawing.Size(1247, 606);
       this.pbMain.TabIndex = 2;
       this.pbMain.TabStop = false;
       this.pbMain.MouseClick += new System.Windows.Forms.MouseEventHandler(this.pbMain_MouseClick);
@@ -311,6 +312,18 @@
       this.tbCurImage.ReadOnly = true;
       this.tbCurImage.Size = new System.Drawing.Size(100, 47);
       // 
+      // btnCacheAllFrames
+      // 
+      this.btnCacheAllFrames.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
+      this.btnCacheAllFrames.Font = new System.Drawing.Font("Segoe UI", 9F, ((System.Drawing.FontStyle)((System.Drawing.FontStyle.Bold | System.Drawing.FontStyle.Italic))));
+      this.btnCacheAllFrames.Image = ((System.Drawing.Image)(resources.GetObject("btnCacheAllFrames.Image")));
+      this.btnCacheAllFrames.ImageTransparentColor = System.Drawing.Color.Magenta;
+      this.btnCacheAllFrames.Name = "btnCacheAllFrames";
+      this.btnCacheAllFrames.Size = new System.Drawing.Size(156, 45);
+      this.btnCacheAllFrames.Text = "Cache All";
+      this.btnCacheAllFrames.ToolTipText = "Cache All images in memory.\\r\\n warning - may be time consuming";
+      this.btnCacheAllFrames.Click += new System.EventHandler(this.btnCacheAllFrames_Click);
+      // 
       // pbOutView
       // 
       this.pbOutView.AccessibleRole = System.Windows.Forms.AccessibleRole.Graphic;
@@ -338,8 +351,8 @@
       // splitContorl.Panel2
       // 
       this.splitContorl.Panel2.Controls.Add(this.pbOutView);
-      this.splitContorl.Size = new System.Drawing.Size(624, 552);
-      this.splitContorl.SplitterDistance = 278;
+      this.splitContorl.Size = new System.Drawing.Size(624, 551);
+      this.splitContorl.SplitterDistance = 277;
       this.splitContorl.TabIndex = 0;
       // 
       // label1
@@ -388,7 +401,7 @@
       // 
       this.splitLeft.Panel2.Controls.Add(this.pbZoom);
       this.splitLeft.Size = new System.Drawing.Size(624, 938);
-      this.splitLeft.SplitterDistance = 552;
+      this.splitLeft.SplitterDistance = 551;
       this.splitLeft.TabIndex = 0;
       // 
       // pbZoom
@@ -399,7 +412,7 @@
       this.pbZoom.Location = new System.Drawing.Point(0, 0);
       this.pbZoom.Margin = new System.Windows.Forms.Padding(0);
       this.pbZoom.Name = "pbZoom";
-      this.pbZoom.Size = new System.Drawing.Size(624, 382);
+      this.pbZoom.Size = new System.Drawing.Size(624, 383);
       this.pbZoom.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
       this.pbZoom.TabIndex = 2;
       this.pbZoom.TabStop = false;
@@ -500,7 +513,8 @@
       this.saveToolStripButton.Name = "saveToolStripButton";
       this.saveToolStripButton.Overflow = System.Windows.Forms.ToolStripItemOverflow.Never;
       this.saveToolStripButton.Size = new System.Drawing.Size(40, 40);
-      this.saveToolStripButton.Text = "&Save";
+      this.saveToolStripButton.Text = ".";
+      this.saveToolStripButton.Click += new System.EventHandler(this.saveToolStripButton_Click);
       // 
       // openToolStripButton
       // 
@@ -539,13 +553,19 @@
             this.copyToolStripButton,
             this.pasteToolStripButton,
             this.toolStripSeparator2,
-            this.helpToolStripButton});
+            this.helpToolStripButton,
+            this.cbSeperator});
       this.toolStrip1.Location = new System.Drawing.Point(0, 0);
       this.toolStrip1.Name = "toolStrip1";
       this.toolStrip1.Size = new System.Drawing.Size(1875, 43);
       this.toolStrip1.Stretch = true;
       this.toolStrip1.TabIndex = 4;
       this.toolStrip1.Text = "toolStrip1";
+      // 
+      // cbSeperator
+      // 
+      this.cbSeperator.Name = "cbSeperator";
+      this.cbSeperator.Size = new System.Drawing.Size(6, 48);
       // 
       // toolStripProgressBar1
       // 
@@ -586,18 +606,6 @@
       this.statusStrip1.Size = new System.Drawing.Size(1875, 48);
       this.statusStrip1.TabIndex = 3;
       this.statusStrip1.Text = "statusStrip1";
-      // 
-      // btnCacheAllFrames
-      // 
-      this.btnCacheAllFrames.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
-      this.btnCacheAllFrames.Font = new System.Drawing.Font("Segoe UI", 9F, ((System.Drawing.FontStyle)((System.Drawing.FontStyle.Bold | System.Drawing.FontStyle.Italic))));
-      this.btnCacheAllFrames.Image = ((System.Drawing.Image)(resources.GetObject("btnCacheAllFrames.Image")));
-      this.btnCacheAllFrames.ImageTransparentColor = System.Drawing.Color.Magenta;
-      this.btnCacheAllFrames.Name = "btnCacheAllFrames";
-      this.btnCacheAllFrames.Size = new System.Drawing.Size(156, 45);
-      this.btnCacheAllFrames.Text = "Cache All";
-      this.btnCacheAllFrames.ToolTipText = "Cache All images in memory.\\r\\n warning - may be time consuming";
-      this.btnCacheAllFrames.Click += new System.EventHandler(this.btnCacheAllFrames_Click);
       // 
       // frmMain
       // 
@@ -693,6 +701,7 @@
     private System.Windows.Forms.ComboBox cbSessioFPS;
     private System.Windows.Forms.Label label1;
     private System.Windows.Forms.ToolStripButton btnCacheAllFrames;
+    private System.Windows.Forms.ToolStripSeparator cbSeperator;
   }
 }
 

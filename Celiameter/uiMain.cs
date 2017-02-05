@@ -105,7 +105,7 @@ namespace Celiameter
       {
         var frm = session._activeFrames[i];
         ListViewItem lvItem = new ListViewItem(frm._key, frm._key);
-        lvItem.Tag = new SessionFrameTag(frm._key, ref frm._frame);
+        lvItem.Tag = new SessionFrameTag(frm._key, frm._frame);
         lvThumbs.Items.Add(lvItem);
       }
     }

@@ -17,7 +17,6 @@ namespace Celiameter
   public partial class frmMain : Form
   {
     public uiMan _uiMan = new uiMan();
-    public SessionMan _session = new SessionMan();
     public frmMain()
     {
       InitializeComponent();
@@ -49,7 +48,7 @@ namespace Celiameter
     }*/
     private void newToolStripButton_Click(object sender, EventArgs e)
     {
-      if (_session._modified)
+      if (_activeSession.Modified)
       {
         var ync = MessageBox.Show("Save current session?", "Save session?", MessageBoxButtons.YesNoCancel);
         switch(ync)
@@ -58,7 +57,7 @@ namespace Celiameter
           default:
             return;
           case DialogResult.Yes:
-            if (!_session.Save())
+            if (!_activeSession.Save())
             {
               return;
             }
@@ -75,27 +74,49 @@ namespace Celiameter
       folderBrowserDialog1.InitialDirectory = (String)oFolder;
       if (folderBrowserDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
       {
-        Application.UserAppDataRegistry.SetValue("browseFolder", System.IO.Path.GetDirectoryName(folderBrowserDialog1.FileName));
         SessionMan newSession;
-        String sessionPath = Path.GetDirectoryName(folderBrowserDialog1.FileName);
-        String sessionFileName = sessionPath + "\\" + Path.GetFileNameWithoutExtension(folderBrowserDialog1.FileName) + "." + SessionMan.SessionFileExt;
-
-        SessionMan.createNewSession(out newSession, sessionFileName, sessionPath, Path.GetExtension(folderBrowserDialog1.FileName));
-        setActiveSession(ref newSession);
+        String folder = Path.GetDirectoryName(folderBrowserDialog1.FileName);
+        Application.UserAppDataRegistry.SetValue("browseFolder", folder);
+        if (Path.GetExtension(folderBrowserDialog1.FileName) == SessionMan.SessionFileExt)
+        {
+          newSession = SessionMan.loadSession(folderBrowserDialog1.FileName);
+        }
+        else
+        {
+          String sessionFileName = folder + "\\" + Path.GetFileNameWithoutExtension(folderBrowserDialog1.FileName) + SessionMan.SessionFileExt;
+          SessionMan.createNewSession(out newSession, sessionFileName, Path.GetExtension(folderBrowserDialog1.FileName));
+        }
+        if (newSession == null)
+        {
+          MessageBox.Show("Failed to load file:\r\n" + folderBrowserDialog1.FileName);
+        }
+        else
+        {
+          setActiveSession(ref newSession);
+        }
       }
 
     }
+    CheckBox btnAutoload = new CheckBox();
     private void frmMain_Load(object sender, EventArgs e)
     {
-
+      btnAutoload.Text = "Autoload last session";
+      btnAutoload.CheckStateChanged += btnAutoload_CheckStateChanged;
+      btnAutoload.BackColor = Color.Transparent;
+      ToolStripControlHost host = new ToolStripControlHost(btnAutoload);
+      host.Margin = new Padding(3, 0, 0, 1);
+      btnAutoload.BackColor = Color.Transparent;
+      host.BackColor = Color.Transparent;
+      toolStrip1.Items.Insert(toolStrip1.Items.IndexOf(cbSeperator)+1, host);
     }
-    SessionMan _activeSession = null;
+    SessionMan _activeSession = new SessionMan();
     private void setActiveSession(ref SessionMan session)
     {
       _activeSession = session;
       _uiMan.PopulateSessionThumbs(ref lvThumbs, ref session);
     }
 
+    bool _autoload = false;
     private void frmMain_FormClosing(object sender, FormClosingEventArgs e)
     {
       Application.UserAppDataRegistry.SetValue("wndTop", Top);
@@ -106,6 +127,11 @@ namespace Celiameter
       Application.UserAppDataRegistry.SetValue("rightSplitPos", splitRight.SplitterDistance);
       Application.UserAppDataRegistry.SetValue("mainSplitPos", splitMain.SplitterDistance);
       Application.UserAppDataRegistry.SetValue("prevSplitPos", splitContorl.SplitterDistance);
+      Application.UserAppDataRegistry.SetValue("autoload", _autoload.ToString());
+      if (_activeSession != null && _activeSession._loaded)
+      {
+        Application.UserAppDataRegistry.SetValue("lastSessionFile", _activeSession._sessionFileName);
+      }
     }
 
     private void frmMain_Shown(object sender, EventArgs e)
@@ -118,6 +144,8 @@ namespace Celiameter
       Object rightSplitPos = Application.UserAppDataRegistry.GetValue("rightSplitPos", splitRight.SplitterDistance);
       Object mainSplitPos = Application.UserAppDataRegistry.GetValue("mainSplitPos", splitMain.SplitterDistance);
       Object splitContorlPos = Application.UserAppDataRegistry.GetValue("prevSplitPos", splitContorl.SplitterDistance);
+      Object autoload = Application.UserAppDataRegistry.GetValue("autoload", _autoload.ToString());
+      Object sessionFileName = Application.UserAppDataRegistry.GetValue("lastSessionFile", null);
       Width = (int)oW;
       Height = (int)oH;
       Left = (int)oLeft;
@@ -126,7 +154,20 @@ namespace Celiameter
       splitRight.SplitterDistance = (int)rightSplitPos;
       splitMain.SplitterDistance = (int)mainSplitPos;
       splitContorl.SplitterDistance = (int)splitContorlPos;
-
+      _autoload = Boolean.Parse((string)autoload);
+      if (_autoload && sessionFileName != null)
+      {
+        SessionMan session = SessionMan.loadSession((string)sessionFileName);
+        if (session == null)
+        {
+          MessageBox.Show("session load failed.\r\nfile path: \"" + sessionFileName + "\"");
+        }
+        else
+        {
+          setActiveSession(ref session);
+        }
+      }
+      btnAutoload.Checked = _autoload;
     }
 
     private void pbMain_MouseMove(object sender, MouseEventArgs e)
@@ -381,6 +422,15 @@ namespace Celiameter
         SessionFrameTag itemTag = (SessionFrameTag)i.Tag;
         itemTag._frame.loadImage(ModifierKeys == Keys.Control);
       }
+    }
+    private void btnAutoload_CheckStateChanged(object sender, EventArgs e)
+    {
+      _autoload = btnAutoload.Checked;
+    }
+
+    private void saveToolStripButton_Click(object sender, EventArgs e)
+    {
+      _activeSession.saveSession(_activeSession._sessionFileName, true);
     }
   }
 }
