@@ -51,6 +51,7 @@
       this.btnCacheAllFrames = new System.Windows.Forms.ToolStripButton();
       this.pbOutView = new Emgu.CV.UI.ImageBox();
       this.splitContorl = new System.Windows.Forms.SplitContainer();
+      this.chkOverlayDiff = new System.Windows.Forms.CheckBox();
       this.label1 = new System.Windows.Forms.Label();
       this.cbSessioFPS = new System.Windows.Forms.ComboBox();
       this.splitLeft = new System.Windows.Forms.SplitContainer();
@@ -113,7 +114,7 @@
       this.lvThumbs.Name = "lvThumbs";
       this.lvThumbs.OwnerDraw = true;
       this.lvThumbs.ShowGroups = false;
-      this.lvThumbs.Size = new System.Drawing.Size(1247, 282);
+      this.lvThumbs.Size = new System.Drawing.Size(1247, 281);
       this.lvThumbs.TabIndex = 0;
       this.lvThumbs.UseCompatibleStateImageBehavior = false;
       this.lvThumbs.DrawItem += new System.Windows.Forms.DrawListViewItemEventHandler(this.lvThumbs_DrawItem);
@@ -132,7 +133,7 @@
       this.statusStrip2.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.txtPointerCoords,
             this.txtDebugMsg});
-      this.statusStrip2.Location = new System.Drawing.Point(0, 606);
+      this.statusStrip2.Location = new System.Drawing.Point(0, 602);
       this.statusStrip2.Name = "statusStrip2";
       this.statusStrip2.Size = new System.Drawing.Size(1247, 46);
       this.statusStrip2.TabIndex = 1;
@@ -196,8 +197,8 @@
       // 
       this.splitRight.Panel2.Controls.Add(this.thumbToolStrip);
       this.splitRight.Panel2.Controls.Add(this.lvThumbs);
-      this.splitRight.Size = new System.Drawing.Size(1247, 938);
-      this.splitRight.SplitterDistance = 652;
+      this.splitRight.Size = new System.Drawing.Size(1247, 933);
+      this.splitRight.SplitterDistance = 648;
       this.splitRight.TabIndex = 1;
       // 
       // pbMain
@@ -206,7 +207,7 @@
       this.pbMain.Dock = System.Windows.Forms.DockStyle.Fill;
       this.pbMain.Location = new System.Drawing.Point(0, 0);
       this.pbMain.Name = "pbMain";
-      this.pbMain.Size = new System.Drawing.Size(1247, 606);
+      this.pbMain.Size = new System.Drawing.Size(1247, 602);
       this.pbMain.TabIndex = 2;
       this.pbMain.TabStop = false;
       this.pbMain.MouseClick += new System.Windows.Forms.MouseEventHandler(this.pbMain_MouseClick);
@@ -330,7 +331,7 @@
       this.pbOutView.Dock = System.Windows.Forms.DockStyle.Fill;
       this.pbOutView.Location = new System.Drawing.Point(0, 0);
       this.pbOutView.Name = "pbOutView";
-      this.pbOutView.Size = new System.Drawing.Size(624, 270);
+      this.pbOutView.Size = new System.Drawing.Size(624, 269);
       this.pbOutView.TabIndex = 3;
       this.pbOutView.TabStop = false;
       // 
@@ -345,15 +346,27 @@
       // 
       this.splitContorl.Panel1.AccessibleRole = System.Windows.Forms.AccessibleRole.Pane;
       this.splitContorl.Panel1.AutoScroll = true;
+      this.splitContorl.Panel1.Controls.Add(this.chkOverlayDiff);
       this.splitContorl.Panel1.Controls.Add(this.label1);
       this.splitContorl.Panel1.Controls.Add(this.cbSessioFPS);
       // 
       // splitContorl.Panel2
       // 
       this.splitContorl.Panel2.Controls.Add(this.pbOutView);
-      this.splitContorl.Size = new System.Drawing.Size(624, 551);
-      this.splitContorl.SplitterDistance = 277;
+      this.splitContorl.Size = new System.Drawing.Size(624, 548);
+      this.splitContorl.SplitterDistance = 275;
       this.splitContorl.TabIndex = 0;
+      // 
+      // chkOverlayDiff
+      // 
+      this.chkOverlayDiff.AutoSize = true;
+      this.chkOverlayDiff.Location = new System.Drawing.Point(22, 61);
+      this.chkOverlayDiff.Name = "chkOverlayDiff";
+      this.chkOverlayDiff.Size = new System.Drawing.Size(201, 36);
+      this.chkOverlayDiff.TabIndex = 2;
+      this.chkOverlayDiff.Text = "Overlay Diff";
+      this.chkOverlayDiff.UseVisualStyleBackColor = true;
+      this.chkOverlayDiff.CheckedChanged += new System.EventHandler(this.chkOverlayDiff_CheckedChanged);
       // 
       // label1
       // 
@@ -382,9 +395,10 @@
             "1200"});
       this.cbSessioFPS.Location = new System.Drawing.Point(92, 9);
       this.cbSessioFPS.Name = "cbSessioFPS";
-      this.cbSessioFPS.Size = new System.Drawing.Size(121, 39);
+      this.cbSessioFPS.Size = new System.Drawing.Size(159, 39);
       this.cbSessioFPS.TabIndex = 0;
       this.cbSessioFPS.Text = "60";
+      this.cbSessioFPS.TextChanged += new System.EventHandler(this.cbSessioFPS_TextChanged);
       // 
       // splitLeft
       // 
@@ -400,8 +414,8 @@
       // splitLeft.Panel2
       // 
       this.splitLeft.Panel2.Controls.Add(this.pbZoom);
-      this.splitLeft.Size = new System.Drawing.Size(624, 938);
-      this.splitLeft.SplitterDistance = 551;
+      this.splitLeft.Size = new System.Drawing.Size(624, 933);
+      this.splitLeft.SplitterDistance = 548;
       this.splitLeft.TabIndex = 0;
       // 
       // pbZoom
@@ -412,7 +426,7 @@
       this.pbZoom.Location = new System.Drawing.Point(0, 0);
       this.pbZoom.Margin = new System.Windows.Forms.Padding(0);
       this.pbZoom.Name = "pbZoom";
-      this.pbZoom.Size = new System.Drawing.Size(624, 383);
+      this.pbZoom.Size = new System.Drawing.Size(624, 381);
       this.pbZoom.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
       this.pbZoom.TabIndex = 2;
       this.pbZoom.TabStop = false;
@@ -421,7 +435,7 @@
       // 
       this.splitMain.Cursor = System.Windows.Forms.Cursors.Default;
       this.splitMain.Dock = System.Windows.Forms.DockStyle.Fill;
-      this.splitMain.Location = new System.Drawing.Point(0, 43);
+      this.splitMain.Location = new System.Drawing.Point(0, 48);
       this.splitMain.Name = "splitMain";
       // 
       // splitMain.Panel1
@@ -431,7 +445,7 @@
       // splitMain.Panel2
       // 
       this.splitMain.Panel2.Controls.Add(this.splitRight);
-      this.splitMain.Size = new System.Drawing.Size(1875, 938);
+      this.splitMain.Size = new System.Drawing.Size(1875, 933);
       this.splitMain.SplitterDistance = 624;
       this.splitMain.TabIndex = 5;
       // 
@@ -557,7 +571,7 @@
             this.cbSeperator});
       this.toolStrip1.Location = new System.Drawing.Point(0, 0);
       this.toolStrip1.Name = "toolStrip1";
-      this.toolStrip1.Size = new System.Drawing.Size(1875, 43);
+      this.toolStrip1.Size = new System.Drawing.Size(1875, 48);
       this.toolStrip1.Stretch = true;
       this.toolStrip1.TabIndex = 4;
       this.toolStrip1.Text = "toolStrip1";
@@ -702,6 +716,7 @@
     private System.Windows.Forms.Label label1;
     private System.Windows.Forms.ToolStripButton btnCacheAllFrames;
     private System.Windows.Forms.ToolStripSeparator cbSeperator;
+    private System.Windows.Forms.CheckBox chkOverlayDiff;
   }
 }
 

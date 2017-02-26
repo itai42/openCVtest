@@ -145,20 +145,23 @@ namespace Celiameter
       }
     }
 
+    [XmlIgnore]
+    public string Key { get; set; }
+
     //[XmlArray("ROIsD")]
     //[XmlArrayItem("PairD")]
-//     [XmlIgnore]
-//     public Dictionary<String, RoiItem> ROIsD
-//     {
-//       get
-//       {
-//         return _roiItems.ToDictionary(v => v.Key, v => v.Value);
-//       }
-//       set
-//       {
-//         _roiItems = new SortedList<String, RoiItem>(value);
-//       }
-//     }
+    //     [XmlIgnore]
+    //     public Dictionary<String, RoiItem> ROIsD
+    //     {
+    //       get
+    //       {
+    //         return _roiItems.ToDictionary(v => v.Key, v => v.Value);
+    //       }
+    //       set
+    //       {
+    //         _roiItems = new SortedList<String, RoiItem>(value);
+    //       }
+    //     }
 
     [XmlIgnore]
     public bool _imgLoaded = false;
@@ -206,7 +209,7 @@ namespace Celiameter
     {
       if (!force && _imgLoaded && _matOrig != null)
         return _matOrig;
-      _matOrig = CvInvoke.Imread(_imageFilePath, Emgu.CV.CvEnum.ImreadModes.AnyColor);
+      _matOrig = CvInvoke.Imread(_imageFilePath, Emgu.CV.CvEnum.ImreadModes.AnyColor);// | Emgu.CV.CvEnum.ImreadModes.AnyDepth);
       _imgLoaded = (_matOrig != null);
       return _matOrig;
     }
@@ -238,6 +241,7 @@ namespace Celiameter
     {
       _frame = frame;
       _key = key;
+      _frame.Key = _key;
     }
     public static int indexInList(ref List<SessionFrameTag> list, String key)
     {
@@ -328,12 +332,18 @@ namespace Celiameter
       }
     }
 
+
+
     [XmlIgnore]
     internal List< SessionFrameTag> _activeFrames = new List<SessionFrameTag>();
 
     internal static string SessionFileExt = ".cels";
     internal static string SessionFileHeaderName = "celiameter";
     internal static string SessionFileHeaderVersion = "1.0";
+    internal SessionFrame _currentFrame;
+
+    [XmlElement("SessionOptions")]
+    internal CMOptions _options = new CMOptions();
 
     [XmlIgnore]
     public ImageListStreamer imageListStreamer { get; internal set; }

@@ -11,6 +11,7 @@ using System.Windows.Forms;
 
 using Emgu.CV;
 using System.Diagnostics;
+using Emgu.CV.Structure;
 
 namespace Celiameter
 {
@@ -21,37 +22,37 @@ namespace Celiameter
     {
       InitializeComponent();
     }
-/*  override mouse drag
+    /*  override mouse drag
 
-    [System.Security.Permissions.PermissionSet(System.Security.Permissions.SecurityAction.Demand, Name = "FullTrust")]
-    protected override void WndProc(ref Message m)
-    {
-      bool overrideMsg = false;
-      if (pbMain != null)
-      {
-        // Listen for operating system messages.
-        switch (m.Msg)
+        [System.Security.Permissions.PermissionSet(System.Security.Permissions.SecurityAction.Demand, Name = "FullTrust")]
+        protected override void WndProc(ref Message m)
         {
-          case (int)WM.MOUSEMOVE:
-          case (int)WM.LBUTTONDOWN:
-            if (m.HWnd == pbMain.Handle)
+          bool overrideMsg = false;
+          if (pbMain != null)
+          {
+            // Listen for operating system messages.
+            switch (m.Msg)
             {
-              overrideMsg = true;
+              case (int)WM.MOUSEMOVE:
+              case (int)WM.LBUTTONDOWN:
+                if (m.HWnd == pbMain.Handle)
+                {
+                  overrideMsg = true;
+                }
+                break;
+              default:
+                break;
             }
-            break;
-          default:
-            break;
-        }
-      }
-      if (!overrideMsg)
-        base.WndProc(ref m);
-    }*/
+          }
+          if (!overrideMsg)
+            base.WndProc(ref m);
+        }*/
     private void newToolStripButton_Click(object sender, EventArgs e)
     {
       if (_activeSession.Modified)
       {
         var ync = MessageBox.Show("Save current session?", "Save session?", MessageBoxButtons.YesNoCancel);
-        switch(ync)
+        switch (ync)
         {
           case DialogResult.Cancel:
           default:
@@ -74,12 +75,14 @@ namespace Celiameter
       folderBrowserDialog1.InitialDirectory = (String)oFolder;
       if (folderBrowserDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
       {
+        bool isSessionFileLoaded = false;
         SessionMan newSession;
         String folder = Path.GetDirectoryName(folderBrowserDialog1.FileName);
         Application.UserAppDataRegistry.SetValue("browseFolder", folder);
         if (Path.GetExtension(folderBrowserDialog1.FileName) == SessionMan.SessionFileExt)
         {
           newSession = SessionMan.loadSession(folderBrowserDialog1.FileName);
+          isSessionFileLoaded = (newSession != null);
         }
         else
         {
@@ -92,7 +95,7 @@ namespace Celiameter
         }
         else
         {
-          setActiveSession(ref newSession);
+          setActiveSession(ref newSession, isSessionFileLoaded);
         }
       }
 
@@ -107,13 +110,55 @@ namespace Celiameter
       host.Margin = new Padding(3, 0, 0, 1);
       btnAutoload.BackColor = Color.Transparent;
       host.BackColor = Color.Transparent;
-      toolStrip1.Items.Insert(toolStrip1.Items.IndexOf(cbSeperator)+1, host);
+      toolStrip1.Items.Insert(toolStrip1.Items.IndexOf(cbSeperator) + 1, host);
     }
     SessionMan _activeSession = new SessionMan();
-    private void setActiveSession(ref SessionMan session)
+    private void setActiveSession(ref SessionMan session, bool isSessionFileLoaded)
     {
       _activeSession = session;
+      if (isSessionFileLoaded)
+      {
+        SetFPS(session._options.FPS);
+        SetDiffOverlay(session._options.DrawingParams.ShowDiffOverlay);
+      }
+      else
+      {
+        GetFPS(ref session._options.FPS);
+        GetDiffOverlay(out session._options.DrawingParams.ShowDiffOverlay);
+      }
       _uiMan.PopulateSessionThumbs(ref lvThumbs, ref session);
+      if (lvThumbs.Items.Count > 0)
+      {
+        lvThumbs.Items[0].Selected = true;
+      }
+    }
+
+    private void GetFPS(ref double fps)
+    {
+      if (double.TryParse(cbSessioFPS.Text, out fps))
+      {
+        _activeSession._options.FPS = fps;
+      }
+      else
+      {
+        SetFPS(fps);
+      }
+    }
+    private void SetFPS(double fps)
+    {
+      int sels = cbSessioFPS.SelectionStart;
+      cbSessioFPS.Text = fps.ToString("##.###");
+      cbSessioFPS.SelectionStart = sels;
+      cbSessioFPS.SelectionLength = 0;
+    }
+
+    private void GetDiffOverlay(out bool drawDiffOverlay)
+    {
+      drawDiffOverlay = chkOverlayDiff.Checked;
+    }
+    private void SetDiffOverlay(bool drawDiffOverlay)
+    {
+      chkOverlayDiff.Checked = drawDiffOverlay;
     }
 
     bool _autoload = false;
@@ -164,7 +209,7 @@ namespace Celiameter
         }
         else
         {
-          setActiveSession(ref session);
+          setActiveSession(ref session, true);
         }
       }
       btnAutoload.Checked = _autoload;
@@ -198,7 +243,40 @@ namespace Celiameter
     private void pbMain_MouseDown(object sender, MouseEventArgs e)
     {
       Point ip = new Point(e.X, e.Y);
-      if (e.Button == System.Windows.Forms.MouseButtons.Right)
+      if (e.Button == System.Windows.Forms.MouseButtons.Middle && uiMan.pbToImgCoord(ref pbMain, e.X, e.Y, ref ip))
+      {
+        btnCacheAllFrames_Click(btnCacheAllFrames, new EventArgs());
+
+        try
+        {
+          //_tmpCursor = Cursor.Current;
+          //Cursor.Current = Cursors.WaitCursor;
+          //Application.UseWaitCursor = true;
+          List<double> vals = new List<double>(lvThumbs.Items.Count);
+          foreach (ListViewItem i in lvThumbs.Items)
+          {
+            if (i.Tag == null)
+            {
+              continue;
+            }
+            SessionFrameTag itemTag = (SessionFrameTag)i.Tag;
+            itemTag._frame.loadImage(ModifierKeys == Keys.Control);
+            vals.Add(itemTag._frame._matOrig.ToImage<Gray, Byte>(false)[ip.Y, ip.X].Intensity);
+          }
+          _uiMan.ShowVals(vals, pbOutView);
+        }
+        catch (Exception ex)
+        {
+          MessageBox.Show(ex.Message);
+          throw;
+        }
+        finally
+        {
+          //Application.UseWaitCursor = false;
+          //Cursor.Current = _tmpCursor;
+        }
+      }
+      else if (e.Button == System.Windows.Forms.MouseButtons.Right)
       {
         if (_uiMan._dragPhase > 0)
         {
@@ -225,12 +303,12 @@ namespace Celiameter
           case 2:
             _uiMan._p3 = ip;
             _uiMan._dragPhase = 0;
-            if (!_activeItem.Equals(nullItemTag))
+            if (!_currItem.Equals(nullItemTag))
             {
               RoiItem roi = new RoiItem(_uiMan._p1, _uiMan._p2, _uiMan._p3);
               CvInvoke.Polylines(_uiMan._imgDisp, roi.Points, true, uiMan.RoisColor);
               CvInvoke.Polylines(_uiMan._img, roi.Points, true, uiMan.RoisColor);
-              _activeItem._frame._roiItems.Add(_activeItem._frame._roiItems.Count.ToString("0##"), roi);
+              _currItem._frame._roiItems.Add(_currItem._frame._roiItems.Count.ToString("0##"), roi);
             }
             _uiMan.drawPreview(ref pbMain, ref pbOutView, _uiMan._p1, _uiMan._p2, _uiMan._p3);
             txtDebugMsg.Text = "Selection: {" + _uiMan._p1.ToString() + ", " + _uiMan._p2.ToString() + ", " + _uiMan._p3.ToString() + "}";
@@ -302,7 +380,7 @@ namespace Celiameter
     }
 
     static public SessionFrameTag nullItemTag = new SessionFrameTag();
-    public SessionFrameTag _activeItem = nullItemTag;
+    public SessionFrameTag _currItem = nullItemTag;
     public SessionFrameTag _playbackStartItem = new SessionFrameTag();
     public bool _isPlaying = false;
     public Object _playbackLock = new object();
@@ -351,7 +429,7 @@ namespace Celiameter
       }
       else if (sender == pbcFF)
       {
-        lvThumbs.Items[lvThumbs.Items.Count-1].Selected = true;
+        lvThumbs.Items[lvThumbs.Items.Count - 1].Selected = true;
         lvThumbs.Items[lvThumbs.Items.Count - 1].EnsureVisible();
       }
       else if (sender == pbcFR)
@@ -367,12 +445,12 @@ namespace Celiameter
       {
         pbcLabel.Text = "";
         tbCurImage.Text = "";
-        _activeItem = nullItemTag;
+        _currItem = nullItemTag;
         return;
       }
       else if (lvThumbs.SelectedIndices.Count == 0)
       {
-        _activeItem = nullItemTag;
+        _currItem = nullItemTag;
         pbcLabel.Text = lvThumbs.Items.Count.ToString("(##)");
         tbCurImage.Text = "";
         //var graphic = pbMain.CreateGraphics();
@@ -387,12 +465,11 @@ namespace Celiameter
         var g = thumbToolStrip.CreateGraphics();
         tbCurImage.Size = new Size((int)g.MeasureString(tbCurImage.Text, tbCurImage.Font).Width, thumbToolStrip.Height - (thumbToolStrip.Padding.Vertical + thumbToolStrip.Margin.Vertical));
       }
-      if (!selectedItemTag.Equals(_activeItem))
+      if (!selectedItemTag.Equals(_currItem))
       {
-        Object dummylock = new Object();
-        if (_uiMan.SetActiveFrame(pbMain, pbZoom, pbOutView, ref selectedItemTag, dummylock))
+        if (_uiMan.SetCurrentFrame(pbMain, pbZoom, _activeSession, selectedItemTag._frame, _activeSession))
         {
-          _activeItem = selectedItemTag;
+          _currItem = selectedItemTag;
         }
       }
     }
@@ -410,17 +487,32 @@ namespace Celiameter
         Process.Start(info);
       }
     }
-
+    Cursor _tmpCursor = Cursors.Default;
     private void btnCacheAllFrames_Click(object sender, EventArgs e)
     {
-      foreach(ListViewItem i in lvThumbs.Items)
+      try
       {
-        if (i.Tag == null)
+        _tmpCursor = Cursor.Current;
+        Cursor.Current = Cursors.WaitCursor;
+        Application.UseWaitCursor = true;
+        foreach (ListViewItem i in lvThumbs.Items)
         {
-          continue;
+          if (i.Tag == null)
+          {
+            continue;
+          }
+          SessionFrameTag itemTag = (SessionFrameTag)i.Tag;
+          itemTag._frame.loadImage(ModifierKeys == Keys.Control);
         }
-        SessionFrameTag itemTag = (SessionFrameTag)i.Tag;
-        itemTag._frame.loadImage(ModifierKeys == Keys.Control);
+      }
+      catch (Exception)
+      {
+        throw;
+      }
+      finally
+      {
+        Application.UseWaitCursor = false;
+        Cursor.Current = _tmpCursor;
       }
     }
     private void btnAutoload_CheckStateChanged(object sender, EventArgs e)
@@ -431,6 +523,24 @@ namespace Celiameter
     private void saveToolStripButton_Click(object sender, EventArgs e)
     {
       _activeSession.saveSession(_activeSession._sessionFileName, true);
+    }
+
+    private void chkOverlayDiff_CheckedChanged(object sender, EventArgs e)
+    {
+      _uiMan.setOverlayDiff(pbMain, pbZoom, chkOverlayDiff.Checked, _activeSession);
+    }
+
+    private void cbSessioFPS_TextChanged(object sender, EventArgs e)
+    {
+      if (_activeSession == null || _activeSession._loaded == false)
+      {
+        return;
+      }
+      if (cbSessioFPS.Text.Trim().Length == 0)
+      {
+        return;
+      }
+      GetFPS(ref _activeSession._options.FPS);
     }
   }
 }
