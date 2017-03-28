@@ -12,9 +12,30 @@ using System.Xml.Serialization;
 using System.Runtime.Serialization;
 using System.Windows.Forms;
 using Emgu.CV.Structure;
+using System.Runtime.InteropServices;
+using System.Net;
 
 namespace Celiameter
 {
+  class Utils
+  {
+    public static int ItemIndexInList<T>(ref IEnumerable<T> list, T key) where T : System.IComparable<T>
+    {
+      var items = list.Select((v, i) => new { Value = v, Index = i }).Where(v => v.Value.Equals(key));
+      int n = items.Count();
+      if (n == 1)
+        return items.First().Index;
+      if (n == 0)
+        return -1;
+      if (n > 1)
+      {
+        return -2;
+      }
+      //if (n < 0)
+      return n-2; //shutup warning
+    }
+  }
+
   [XmlRoot("ROI")]
   public class RoiItem
   {
@@ -85,8 +106,33 @@ namespace Celiameter
     }
   }
 
-
-  [XmlRoot("SessionFrameHolder")]
+  public class TrackingStats
+  {
+    int Index;
+    bool status;
+    int X;
+    int Y;
+    Point Pos
+    {
+      get { return new Point(X, Y); }
+      set { X = value.X; Y = value.Y; }
+    }
+    PointF PosF
+    {
+      get { return new PointF((float)X, (float)Y); }
+    }
+    double length;
+    double angle;
+    double lengthF
+    {
+      get { return (float)length; }
+    }
+    double angleF
+    {
+      get { return (float)angle; }
+    }
+  }
+[XmlRoot("SessionFrameHolder")]
   public class SessionFrame
   {
     [XmlAttribute("ImageFile")]
@@ -105,6 +151,13 @@ namespace Celiameter
     public bool _found = false;
     [XmlIgnore]
     public SortedList<String, RoiItem> _roiItems = new SortedList<string, RoiItem>();
+
+    [XmlIgnore]
+    List<TrackingStats> _lengthsNangles = new List<TrackingStats>();
+    [XmlIgnore]
+    List<TrackingStats> _filteredLengthsNangles = new List<TrackingStats>();
+    [XmlIgnore]
+    int _lengthNAnglesVersion = 0;
 
     public class RoiSerializerItem
     {
@@ -164,6 +217,8 @@ namespace Celiameter
     //     }
 
     [XmlIgnore]
+    GCHandle _pinnedArray;
+    [XmlIgnore]
     public bool _imgLoaded = false;
     [XmlIgnore]
     public Mat _matOrig = new Mat();
@@ -201,15 +256,63 @@ namespace Celiameter
       return ret;
     }
 
-      ~SessionFrame()
+    ~SessionFrame()
     {
+      if (_pinnedArray.IsAllocated)
+      {
+        _pinnedArray.Free();
+      }
     }
 
     internal Mat loadImage(bool force = false)
     {
       if (!force && _imgLoaded && _matOrig != null)
         return _matOrig;
-      _matOrig = CvInvoke.Imread(_imageFilePath, Emgu.CV.CvEnum.ImreadModes.AnyColor);// | Emgu.CV.CvEnum.ImreadModes.AnyDepth);
+      if (Path.GetExtension(_imageFilePath).ToUpper() == ".RAW")
+      {
+        //CoreView RAW files header is 20 bytes. looks like this:
+        // 4 bytes = width
+        // 4 bytes = height
+        // 4 bytes = bpp
+        // 4 bytes = number of channesl
+        // 4 bytes = ???? was zero
+        int headerSz = 20;
+        var fileBytes = File.ReadAllBytes(_imageFilePath);
+        int scanline = BitConverter.ToInt32(fileBytes, 0);
+        Size sz = new Size(scanline, BitConverter.ToInt32(fileBytes, 4));
+        int bpp = BitConverter.ToInt32(fileBytes, 8);
+        Emgu.CV.CvEnum.DepthType depthType;
+        switch (bpp)
+        {
+          case 8:
+            depthType = Emgu.CV.CvEnum.DepthType.Cv8U;
+            break;
+          case 16:
+            depthType = Emgu.CV.CvEnum.DepthType.Cv16U;
+            break;
+          case 32:
+            depthType = Emgu.CV.CvEnum.DepthType.Cv32S;
+            break;
+          case 64:
+            depthType = Emgu.CV.CvEnum.DepthType.Cv64F;
+            break;
+          default:
+            depthType = Emgu.CV.CvEnum.DepthType.Default;
+            break;
+        }
+        int channels = BitConverter.ToInt32(fileBytes, 12);
+        if (_pinnedArray.IsAllocated)
+        {
+          _pinnedArray.Free();
+        }
+        _pinnedArray = GCHandle.Alloc(fileBytes, GCHandleType.Pinned);
+        IntPtr imgDataPointer = _pinnedArray.AddrOfPinnedObject()+ headerSz;
+        _matOrig = new Mat(sz.Height, sz.Width, depthType, channels, imgDataPointer, scanline);
+      }
+      else
+      {
+        _matOrig = CvInvoke.Imread(_imageFilePath, Emgu.CV.CvEnum.ImreadModes.AnyColor);// | Emgu.CV.CvEnum.ImreadModes.AnyDepth);
+      }
       _imgLoaded = (_matOrig != null);
       return _matOrig;
     }

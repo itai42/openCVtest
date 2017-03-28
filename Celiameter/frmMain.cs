@@ -379,11 +379,26 @@ namespace Celiameter
       e.DrawDefault = true;
     }
 
+    Timer _playbackTimer = null;
     static public SessionFrameTag nullItemTag = new SessionFrameTag();
     public SessionFrameTag _currItem = nullItemTag;
     public SessionFrameTag _playbackStartItem = new SessionFrameTag();
     public bool _isPlaying = false;
     public Object _playbackLock = new object();
+    private void _playbackTimer_Tick(object sender, EventArgs e)
+    {
+      if (lvThumbs.SelectedIndices.Count != 1)
+      {
+        thumbStrip_playControlClicked(pbcStop, null);
+        return;
+      }
+      if (lvThumbs.SelectedIndices[0] == lvThumbs.Items.Count - 1)
+      {
+        thumbStrip_playControlClicked(pbcStop, null);
+        return;
+      }
+      lvThumbs.Items[lvThumbs.SelectedIndices[0] + 1].Selected = true;
+    }
     private void thumbStrip_playControlClicked(object sender, EventArgs e)
     {
       if (lvThumbs.Items.Count == 0)
@@ -399,6 +414,7 @@ namespace Celiameter
             if (sender == pbcPlayPause)
             {
               _isPlaying = false;
+              _playbackTimer.Stop();
             }
           }
           else
@@ -412,8 +428,15 @@ namespace Celiameter
             if ((sender == pbcPlayPause && !lvThumbs.Items.ContainsKey(_playbackStartItem._key)) || sender == pbcPlay)
             {
               _playbackStartItem = (SessionFrameTag)selection.Tag; //Only set pbStart if we're not using playpause or if playpause was used as first ever playback
+              if (_playbackTimer == null)
+              {
+                _playbackTimer = new Timer();
+                _playbackTimer.Tick += _playbackTimer_Tick;
+              }
             }
             _isPlaying = true;
+            _playbackTimer.Interval = (int)Math.Max(33.3, 1000.0 / double.Parse(cbSessioFPS.Text));
+            _playbackTimer.Start();
           }
         }
       }
@@ -424,6 +447,7 @@ namespace Celiameter
           lock (_playbackLock)
           {
             _isPlaying = false;
+            _playbackTimer.Stop();
           }
         }
       }
@@ -438,6 +462,7 @@ namespace Celiameter
         lvThumbs.Items[0].EnsureVisible();
       }
     }
+
 
     private void lvThumbs_SelectedIndexChanged(object sender, EventArgs e)
     {
@@ -525,11 +550,6 @@ namespace Celiameter
       _activeSession.saveSession(_activeSession._sessionFileName, true);
     }
 
-    private void chkOverlayDiff_CheckedChanged(object sender, EventArgs e)
-    {
-      _uiMan.setOverlayDiff(pbMain, pbZoom, chkOverlayDiff.Checked, _activeSession);
-    }
-
     private void cbSessioFPS_TextChanged(object sender, EventArgs e)
     {
       if (_activeSession == null || _activeSession._loaded == false)
@@ -541,6 +561,26 @@ namespace Celiameter
         return;
       }
       GetFPS(ref _activeSession._options.FPS);
+    }
+
+    private void chkOverlayDiff_CheckedChanged(object sender, EventArgs e)
+    {
+      _uiMan.setOverlayDiff(pbMain, pbZoom, chkOverlayDiff.Checked, _activeSession);
+    }
+
+    private void chkCorrectMotion_CheckedChanged(object sender, EventArgs e)
+    {
+      _uiMan.setCorrectMotion(pbMain, pbZoom, chkCorrectMotion.Checked, _activeSession);
+    }
+
+    private void chkShowImage_CheckedChanged(object sender, EventArgs e)
+    {
+      _uiMan.setShowImage(pbMain, pbZoom, chkShowImage.Checked, _activeSession);
+  }
+
+    private void cbDiffMethod_TextChanged(object sender, EventArgs e)
+    {
+      _uiMan.setDiffMethod(pbMain, pbZoom, cbDiffMethod.Text, _activeSession);
     }
   }
 }

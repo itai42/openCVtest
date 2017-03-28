@@ -34,6 +34,12 @@ namespace Celiameter
     {
       [XmlElement("ShowDiffOverlay")]
       public bool ShowDiffOverlay = true;
+      [XmlElement("CorrectMotion")]
+      public bool CorrectMotion = true;
+      [XmlElement("ShowImage")]
+      internal bool ShowImage = true;
+      [XmlElement("DiffMethod")]
+      public String DiffMethod = "Lucas - Kanade";
     }
   }
 
@@ -304,6 +310,7 @@ namespace Celiameter
       //         CvInvoke.PutText(img, "p3", *p3, Emgu.CV.CvEnum.FontFace.HersheyPlain, 1, color, 1, Emgu.CV.CvEnum.LineType.AntiAlias, false);
       //       
     }
+
     internal bool SetCurrentFrame(ImageBox pbMain, ImageBox pbZoom, SessionMan session, SessionFrame frame, object lockObject)
     {
       if (session == null || session._loaded == false)
@@ -318,6 +325,7 @@ namespace Celiameter
       {
         session._currentFrame = frame;
          _imgOrig = frame.loadImage();
+        CvInvoke.GaussianBlur(_imgOrig, _imgOrig, new Size(3, 3), 1.6);
         if (_imgDisp == null
             || _imgDisp.Height != _imgOrig.Height
             || _imgDisp.Width != _imgOrig.Width
@@ -328,14 +336,16 @@ namespace Celiameter
 
         //imgDisp is RGB conversion of imgOrig
         CvInvoke.CvtColor(_imgOrig, _imgDisp, Emgu.CV.CvEnum.ColorConversion.Gray2Rgb, 3);
-        
+
         //Draw everything that needs drawing
 
         //Multi frame drawings
-        if (session._options.DrawingParams.ShowDiffOverlay && session._activeFrames.Count > 0)
+        SessionFrame diffframe = null;
+        int idx = SessionFrameTag.indexInList(ref session._activeFrames, session._currentFrame.Key);
+        bool correctMotion = false;
+        PointF globalMotion = new PointF(0f, 0f);
+        if ((session._options.DrawingParams.ShowDiffOverlay || session._options.DrawingParams.CorrectMotion) && session._activeFrames.Count > 0)
         {
-          int idx = SessionFrameTag.indexInList(ref session._activeFrames, session._currentFrame.Key);
-          SessionFrame diffframe;
           if (idx == 0)
           {
             diffframe = session._activeFrames[1]._frame;
@@ -360,8 +370,8 @@ namespace Celiameter
           }
 
           //OpticalFlow
-          int xgrid = 30;
-          int ygrid = 30;
+          int xgrid = 120;
+          int ygrid = 120;
 
           List<PointF> ptsDiff = new List<PointF>();
           PointF[] pts = new PointF[xgrid * ygrid];
@@ -373,9 +383,10 @@ namespace Celiameter
           {
             for (int y = 0; y < ygrid; y++)
             {
-              pts[x + y * xgrid] = new PointF((float)x * gridWinSize.Width, (float)y * gridWinSize.Height);
-              ptsO[x + y * xgrid] = new PointF((float)x * gridWinSize.Width, (float)y * gridWinSize.Height);
-              ptsStatus[x + y * xgrid] = 1;
+              int n = x + y * xgrid;
+              pts[n] = new PointF((float)x * gridWinSize.Width, (float)y * gridWinSize.Height);
+              ptsO[n] = new PointF((float)x * gridWinSize.Width, (float)y * gridWinSize.Height);
+              ptsStatus[n] = 1;
             }
           }
           VectorOfPointF ptsIn = new VectorOfPointF(pts);
@@ -385,77 +396,137 @@ namespace Celiameter
           {
             CudaSparsePyrLKOpticalFlow of = new CudaSparsePyrLKOpticalFlow(procWinSize);
             of.Calc(frmImgMat, diffFrmMat, ptsIn, ptsOut);
-            drawFlowArrows = true;
+            drawFlowArrows = session._options.DrawingParams.ShowDiffOverlay;
+            correctMotion = session._options.DrawingParams.CorrectMotion;
           }
           else
           {
-            VectorOfByte ptsStatusOut = new VectorOfByte(xgrid * ygrid);
-            Mat ptsErrOut = new Mat();
-            MCvTermCriteria tc = new MCvTermCriteria(16, 0.001);
-            Mat outMat = new Mat();
-            CvInvoke.CalcOpticalFlowPyrLK(frmImgMat, diffFrmMat, ptsIn, ptsOut, ptsStatusOut, ptsErrOut, procWinSize, 3, tc);
-            for (int x = 0; x < xgrid; x++)
+            if (session._options.DrawingParams.DiffMethod == "Farneback")
             {
-              for (int y = 0; y < ygrid; y++)
+//             var lengths = ptsDiff.Select(p => (float)Math.Sqrt(Math.Pow((double)p.X, 2.0) + Math.Pow((double)p.Y, 2.0)));
+//             DenseHistogram HLen = new DenseHistogram(lengths.Count(), new RangeF(lengths.Min(), lengths.Max()));
+//             var angles = ptsDiff.Select(p => (float)Math.Atan((double)p.Y/(double)p.X));
+//             DenseHistogram HAngle = new DenseHistogram(angles.Count(), new RangeF(angles.Min(), angles.Max()));
+              Image<Gray, float> flowX = new Image<Gray, float>(frmImgMat.Size);
+              Image<Gray, float> flowY = new Image<Gray, float>(frmImgMat.Size);
+              CvInvoke.CalcOpticalFlowFarneback(frmImgMat.ToImage<Gray,byte>(), diffFrmMat.ToImage<Gray, byte>(), flowX, flowY, 0.5, 1, 16, 16, 7, 1.5, OpticalflowFarnebackFlag.FarnebackGaussian);
+              for (int x = 0; x < xgrid; x++)
               {
-                float dx = (float)ptsOut[x + y * xgrid].X - (float)ptsIn[x + y * xgrid].X;
-                float dy = (float)ptsOut[x + y * xgrid].Y - (float)ptsIn[x + y * xgrid].Y;
-                ptsDiff.Add(new PointF(dx, dy));
-              } 
-            }
-            
-            ////             var lengths = ptsDiff.Select(p => (float)Math.Sqrt(Math.Pow((double)p.X, 2.0) + Math.Pow((double)p.Y, 2.0)));
-            ////             DenseHistogram HLen = new DenseHistogram(lengths.Count(), new RangeF(lengths.Min(), lengths.Max()));
-            ////             var angles = ptsDiff.Select(p => (float)Math.Atan((double)p.Y/(double)p.X));
-            ////             DenseHistogram HAngle = new DenseHistogram(angles.Count(), new RangeF(angles.Min(), angles.Max()));
-            //             Image<Gray, float> flowX = new Image<Gray, float>(frmImgMat.Size);
-            //             Image<Gray, float> flowY = new Image<Gray, float>(frmImgMat.Size);
-            //             CvInvoke.CalcOpticalFlowFarneback(frmImgMat.ToImage<Gray,byte>(), diffFrmMat.ToImage<Gray, byte>(), flowX, flowY, 0.5, 3, 31, 16, 5, 1.1, OpticalflowFarnebackFlag.FarnebackGaussian);
-            //             for (int x = 0; x < xgrid; x++)
-            //             {
-            //               for (int y = 0; y < ygrid; y++)
-            //               {
-            //                 float dx = (float)flowX[(int)((float)x * gridWinSize.Width), (int)((float)y * gridWinSize.Height)].Intensity;
-            //                 float dy = (float)flowY[(int)((float)x * gridWinSize.Width), (int)((float)y * gridWinSize.Height)].Intensity;
-            //                 ptsDiff.Add(new PointF(dx,dy));
-            //                 ptsO[x + y * xgrid] = new PointF(pts[x + y * xgrid].X +dx, pts[x + y * xgrid].Y + dy);
-            //               }
-            //             }
-            //             ptsOut = new VectorOfPointF(ptsO);
-
-            drawFlowArrows = true;
-          }
-
-          var lengths = ptsDiff.Select(p => (float)Math.Sqrt(Math.Pow((double)p.X, 2.0) + Math.Pow((double)p.Y, 2.0)));
-          var angles = ptsDiff.Select(p => (float)Math.Atan2((double)p.Y , (double)p.X));
-          float denom = lengths.Count() - 1;
-          var midLengths = lengths.Where(l => Inside((float)lengths.Count(i => l > i) / denom, 0.25f, 0.75f)).ToList();
-          var lengthAvg = midLengths.Average();
-          var midAngles = angles.Where(l => Inside((float)angles.Count(i => l > i) / denom, 0.25f, 0.75f)).ToList();
-          var angleAvg = midAngles.Average();
-          Point center = new Point(_imgDisp.Width / 2, _imgDisp.Height / 2);
-          Arrow a = new Arrow(lengthAvg, angleAvg, new PointF((float)center.X, (float)center.Y));
-          if (drawFlowArrows)
-          {
-            for (int x = 0; x < xgrid; x++)
-            {
-              for (int y = 0; y < ygrid; y++)
-              {
-                if (ptsStatus[x + y * xgrid] == 0)
+                for (int y = 0; y < ygrid; y++)
                 {
-                  CvInvoke.Circle(_imgDisp, Point.Round(ptsIn[x + y * xgrid]), 3, new MCvScalar(128, 128, 255));
+                  int n = x + y * xgrid;
+                  ptsStatus[n] = 1;
+                  float dx = (float)flowX[(int)((float)x * gridWinSize.Width), (int)((float)y * gridWinSize.Height)].Intensity;
+                  float dy = (float)flowY[(int)((float)x * gridWinSize.Width), (int)((float)y * gridWinSize.Height)].Intensity;
+                  ptsDiff.Add(new PointF(dx,dy));
+                  ptsO[n] = new PointF(pts[n].X +dx, pts[n].Y + dy);
                 }
-                else
+              }
+              ptsOut = new VectorOfPointF(ptsO);
+            }
+            else //if (diffMethod == "Lucas - Kanade")  / default
+            { 
+              VectorOfByte ptsStatusOut = new VectorOfByte(xgrid * ygrid);
+              Mat ptsErrOut = new Mat();
+              MCvTermCriteria tc = new MCvTermCriteria(32, 0.001);
+              Mat outMat = new Mat();
+              CvInvoke.CalcOpticalFlowPyrLK(frmImgMat, diffFrmMat, ptsIn, ptsOut, ptsStatusOut, ptsErrOut, procWinSize, 1, tc);
+              for (int x = 0; x < xgrid; x++)
+              {
+                for (int y = 0; y < ygrid; y++)
                 {
-                  CvInvoke.ArrowedLine(_imgDisp, Point.Round(ptsIn[x + y * xgrid]), Point.Round(ptsOut[x + y * xgrid]), new MCvScalar(0, 0, 255), 1, LineType.EightConnected, 0, 0.3);
+                  int n = x + y * xgrid;
+                  ptsStatus[n] = ptsStatusOut[n];
+                  float dx = (float)ptsOut[n].X - (float)ptsIn[n].X;
+                  float dy = (float)ptsOut[n].Y - (float)ptsIn[n].Y;
+                  ptsDiff.Add(new PointF(dx, dy));
                 }
               }
             }
+            
+            drawFlowArrows = session._options.DrawingParams.ShowDiffOverlay;
+            correctMotion = session._options.DrawingParams.CorrectMotion;
           }
 
-          //draw center arrow
-          a._length *= 2;
-          CvInvoke.ArrowedLine(_imgDisp, Point.Round(a.Origin), Point.Round(a.Tip), new MCvScalar(0, 255, 0), 1, LineType.EightConnected, 0, 0.3);
+          var lengthsNangles = ptsDiff.Select((p, indx) => new {
+            Indx = indx,
+            status = ptsStatus[indx],
+            X = p.X,
+            Y = p.Y,
+            length = (float)Math.Sqrt(Math.Pow((double)p.X, 2.0) + Math.Pow((double)p.Y, 2.0)),
+            angle = (float)Math.Atan2((double)p.Y, (double)p.X) }).Where(l => (l.length >= 1)).Where(i => i.status == 1);
+          float lengthAvg = 0;
+          float angleAvg = 0;
+          try
+          {
+//             SortedList<int, int> lengthHistogram = new SortedList<int, int>();
+//             foreach (var i in lengthsNangles)
+//             {
+//               if (i.status == 1)
+//               {
+//                 int key = (int)Math.Round(i.length);
+//                 int val = (lengthHistogram.ContainsKey(key) ? lengthHistogram[key] + 1 : 1);
+//                 lengthHistogram[key] = val;
+//               }
+//             }
+//             double lengthsTotal = (double)lengthHistogram.Values.Sum();
+//             int acc = 0;
+//             for (int i=0; i< lengthHistogram.Count; i++)
+//             {
+//               acc += lengthHistogram.ElementAt(i).Value;
+//               lengthHistogram[i] = acc;
+//             }
+//             var percentileByLen = lengthHistogram.Select(i => new KeyValuePair<int, double>(i.Key, (double)i.Value / lengthsTotal)).ToDictionary(k => k.Key, v => v.Value);
+            var filteredLNA = lengthsNangles;//.Where(u => Inside(percentileByLen[(int)Math.Round(u.length)], 0.25, 0.75));
+            lengthAvg = filteredLNA.Average(i => i.length);
+            var unitXAvg = filteredLNA.Where(i => (i.length != 0f)).Average(i => i.X / i.length);
+            var unitYAvg = filteredLNA.Where(i => (i.length != 0f)).Average(i => i.Y / i.length);
+            angleAvg = (float)Math.Atan2((double)unitYAvg, (double)unitXAvg);
+          }
+          catch
+          {
+            drawFlowArrows = false;
+            correctMotion = false;
+          }
+          PointF center = new PointF((float)_imgDisp.Width / 2f, (float)_imgDisp.Height / 2f);
+          Arrow a = new Arrow(lengthAvg, angleAvg, new PointF(center.X, center.Y));
+          globalMotion = new PointF(a.dX, a.dY);
+          if (drawFlowArrows)
+          {
+            if (!session._options.DrawingParams.ShowImage)
+            {
+              _imgDisp.SetTo(new MCvScalar(255, 255, 255), null);
+            }
+
+            for (int x = 0; x < xgrid; x++)
+            {
+              for (int y = 0; y < ygrid; y++)
+              {
+                int n = x + y * xgrid;
+                if (ptsStatus[n] == 0)
+                {
+                  CvInvoke.Circle(_imgDisp, Point.Round(ptsIn[n]), 3, new MCvScalar(128, 128, 255));
+                }
+                else
+                {
+                  PointF ptOut;
+                  if (session._options.DrawingParams.CorrectMotion)
+                  {
+                    ptOut = new PointF(ptsOut[n].X - globalMotion.X, ptsOut[n].Y - globalMotion.Y);
+                  }
+                  else
+                  {
+                    ptOut = ptsOut[n];
+                  }
+                  CvInvoke.ArrowedLine(_imgDisp, Point.Round(ptsIn[n]), Point.Round(ptOut), new MCvScalar(0, 0, 255), 1, LineType.EightConnected, 0, 0.3);
+                }
+              }
+            }
+            //draw center arrow
+            a._length *= 2;
+            CvInvoke.ArrowedLine(_imgDisp, Point.Round(a.Origin), Point.Round(a.Tip), new MCvScalar(0, 255, 0), 1, LineType.EightConnected, 0, 0.3);
+          }
+
 
 
           //AbsDiff
@@ -472,7 +543,9 @@ namespace Celiameter
           CvInvoke.Polylines(_imgDisp, roi.Value.Points, true, RoisColor);
         }
 
+
         //we clone/copy because we'll draw roi creation lines over imgDisp and will want it to avoid repeating color conversion
+        bool wasCloned = false;
         if (_img == null
             || _imgDisp.Height != _img.Height
             || _imgDisp.Width != _img.Width
@@ -480,8 +553,23 @@ namespace Celiameter
             || _imgDisp.Depth != _img.Depth)
         {
            _img = _imgDisp.Clone();
+          wasCloned = true;
         }
-        else
+        if (correctMotion)
+        {
+          int Sleft = (int)Math.Max(globalMotion.X, 0);
+          int Stop = (int)Math.Max(globalMotion.Y, 0);
+          int Dleft = (int)Math.Max(-globalMotion.X, 0);
+          int Dtop = (int)Math.Max(-globalMotion.Y, 0);
+          int W = _imgDisp.Width - (int)Math.Abs(globalMotion.X);
+          int H = _imgDisp.Height - (int)Math.Abs(globalMotion.Y);
+          Rectangle SRect = new Rectangle(Sleft, Stop, W, H);
+          Rectangle DRect = new Rectangle(Dleft, Dtop, W, H);
+          Mat Simg = new Mat(_imgDisp, SRect);
+          Mat Dimg = new Mat(_img, DRect);
+          Simg.CopyTo(Dimg);
+        }
+        else if(!wasCloned)
         {
           _imgDisp.CopyTo(_img);
         }
@@ -551,6 +639,34 @@ namespace Celiameter
         return;
       }
       session._options.DrawingParams.ShowDiffOverlay = showDiffOverlay;
+      SetCurrentFrame(pbMain, pbZoom, session, session._currentFrame, session);
+    }
+    internal void setCorrectMotion(ImageBox pbMain, ImageBox pbZoom, bool correctMotion, SessionMan session)
+    {
+      if (session == null || session._loaded == false)
+      {
+        return;
+      }
+      session._options.DrawingParams.CorrectMotion = correctMotion;
+      SetCurrentFrame(pbMain, pbZoom, session, session._currentFrame, session);
+    }
+    internal void setShowImage(ImageBox pbMain, ImageBox pbZoom, bool showImage, SessionMan session)
+    {
+      if (session == null || session._loaded == false)
+      {
+        return;
+      }
+      session._options.DrawingParams.ShowImage = showImage;
+      SetCurrentFrame(pbMain, pbZoom, session, session._currentFrame, session);
+    }
+
+    internal void setDiffMethod(ImageBox pbMain, ImageBox pbZoom, String diffMethod, SessionMan session)
+    {
+      if (session == null || session._loaded == false)
+      {
+        return;
+      }
+      session._options.DrawingParams.DiffMethod = diffMethod;
       SetCurrentFrame(pbMain, pbZoom, session, session._currentFrame, session);
     }
 
